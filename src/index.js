@@ -146,6 +146,9 @@ function builder(el, builderParams) {
       // Sets the global state
       isOpen = true;
 
+      // add listener to close panel if a mousedown event occurs outside of the container
+      // useCapture=true to aggressively catch this event before other handlers
+      document.addEventListener('mousedown', closePanelWithoutSideEffects, true);
     // Close
     } else {
       // Removes the css classes
@@ -157,6 +160,9 @@ function builder(el, builderParams) {
       // Sets the global state
       isOpen = false;
 
+      // remove listener for mousedown events outside of the container
+      document.removeEventListener('mousedown', closePanelWithoutSideEffects, true);
+
       // When closing the panel the focused custom option must be the selected one
       setFocusedElement(selectedElement);
 
@@ -166,33 +172,57 @@ function builder(el, builderParams) {
     return isOpen;
   }
 
-  function clickEvent(e) {
-    // Opener click
-    if (e.target === opener || opener.contains(e.target)) {
-      if (isOpen) {
-        open(false);
-      } else {
-        open();
-      }
-    // Custom Option click
-    } else if (e.target.classList.contains(builderParams.optionClass) && panel.contains(e.target)) {
+  function togglePanelIsOpen(e) {
+    if (isOpen) {
+      open(false);
+    } else {
+      open();
+    }
+  }
+
+  function selectTargetOption(e) {
+    if (e.target.classList.contains(builderParams.optionClass)) {
       setSelectedElement(e.target);
       // Sets the corrisponding select's option to selected updating the select's value too
       selectedElement.customSelectOriginalOption.selected = true;
       open(false);
       // Triggers the native change event of the select
       select.dispatchEvent(new CustomEvent('change'));
-    // click on label or select (click on label corrispond to select click)
-    } else if (e.target === select) {
-      // if the original select is focusable (for any external reason) let the focus
-      // else trigger the focus on opener
-      if (opener !== document.activeElement && select !== document.activeElement) {
-        opener.focus();
-      }
-    // Click outside the container closes the panel
-    } else if (isOpen && !container.contains(e.target)) {
-      open(false);
     }
+  }
+
+  function setFocusToOpener(e) {
+    // if the original select is focusable (for any external reason) let the focus
+    // else trigger the focus on opener
+    if (opener !== document.activeElement && select !== document.activeElement) {
+      opener.focus();
+    }
+  }
+
+  function closePanelWithoutSideEffects(e) {
+    // If the mousedown is outside the container, then close the panel
+    if (isOpen && !container.contains(e.target)) {
+      open(false);
+      // prevent the mousedown from affecting any other elements
+      blockEvent(e);
+      // This will fire immediately, as 'mousedown' is before 'click'
+      addOneTimeHandler(document.documentElement, 'click', blockEvent, true);
+      // Set useCapture=true to catch the event before any other existing click handlers
+      // The mousedown/click events should only close the panel, and not affect other elements
+    }
+  }
+
+  function addOneTimeHandler(target, eventName, handler, useCapture=false) {
+    function oneTimeHandler(e)  {
+      handler(e);
+      target.removeEventListener(eventName, oneTimeHandler, useCapture);
+    };
+    target.addEventListener(eventName, oneTimeHandler, useCapture);
+  }
+
+  function blockEvent(e) {
+    e.stopImmediatePropagation();
+    e.preventDefault();
   }
 
   function mouseoverEvent(e) {
@@ -287,20 +317,32 @@ function builder(el, builderParams) {
     }
   }
 
+  var focusOutsidePanel = 'custom-select:focus-outside-panel';
+  // This needs to be a getter function and not just an array,
+  // as the references to the target elements have initial values of `undefined`
+  function getEvents() {
+    return [
+      { target: opener,     name: 'click',            handler: togglePanelIsOpen },
+      { target: panel,      name: 'click',            handler: selectTargetOption },
+      { target: select,     name: 'click',            handler: setFocusToOpener },
+
+      { target: panel,      name: 'mouseover',        handler: mouseoverEvent },
+      { target: panel,      name: focusOutsidePanel,  handler: scrollToFocused },
+      { target: select,     name: 'change',           handler: changeEvent },
+      { target: container,  name: 'keydown',          handler: keydownEvent }
+    ];
+  }
+
   function addEvents() {
-    document.addEventListener('click', clickEvent);
-    panel.addEventListener('mouseover', mouseoverEvent);
-    panel.addEventListener('custom-select:focus-outside-panel', scrollToFocused);
-    select.addEventListener('change', changeEvent);
-    container.addEventListener('keydown', keydownEvent);
+    getEvents().forEach(function(event) {
+      event.target.addEventListener(event.name, event.handler, false);
+    });
   }
 
   function removeEvents() {
-    document.removeEventListener('click', clickEvent);
-    panel.removeEventListener('mouseover', mouseoverEvent);
-    panel.removeEventListener('custom-select:focus-outside-panel', scrollToFocused);
-    select.removeEventListener('change', changeEvent);
-    container.removeEventListener('keydown', keydownEvent);
+    getEvents().forEach(function(event) {
+      event.target.removeEventListener(event.name, event.handler, false);
+    });
   }
 
   function disabled(bool) {
