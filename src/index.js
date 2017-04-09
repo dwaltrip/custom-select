@@ -195,7 +195,7 @@ function builder(el, builderParams) {
     // if the original select is focusable (for any external reason) let the focus
     // else trigger the focus on opener
     if (opener !== document.activeElement && select !== document.activeElement) {
-      opener.focus();
+      container.focus();
     }
   }
 
@@ -349,13 +349,13 @@ function builder(el, builderParams) {
     if (bool && !select.disabled) {
       container.classList.add(builderParams.isDisabledClass);
       select.disabled = true;
-      opener.removeAttribute('tabindex');
+      container.removeAttribute('tabindex');
       container.dispatchEvent(new CustomEvent('custom-select:disabled'));
       removeEvents();
     } else if (!bool && select.disabled) {
       container.classList.remove(builderParams.isDisabledClass);
       select.disabled = false;
-      opener.setAttribute('tabindex', '0');
+      container.setAttribute('tabindex', '0');
       container.dispatchEvent(new CustomEvent('custom-select:enabled'));
       addEvents();
     }
@@ -578,7 +578,7 @@ function builder(el, builderParams) {
   if (select.disabled) {
     container.classList.add(builderParams.isDisabledClass);
   } else {
-    opener.setAttribute('tabindex', '0');
+    container.setAttribute('tabindex', '0');
     select.setAttribute('tabindex', '-1');
     addEvents();
   }
