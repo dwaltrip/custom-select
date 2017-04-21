@@ -10,7 +10,8 @@
  * MIT License
  */
 
-import 'custom-event-polyfill';
+// custom-event-polyfill accesses `window` on module load, causing problems in a Node.js environment.
+// import 'custom-event-polyfill';
 
 const defaultParams = {
   containerClass: 'custom-select-container',
